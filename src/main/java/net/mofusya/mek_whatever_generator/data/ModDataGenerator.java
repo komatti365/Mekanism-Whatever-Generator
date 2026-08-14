@@ -1,4 +1,4 @@
-package net.mofusya.examplemod.data;
+package net.mofusya.mek_whatever_generator.data;
 
 import net.minecraft.core.HolderLookup;
 import net.minecraft.data.DataGenerator;
@@ -7,7 +7,7 @@ import net.minecraftforge.common.data.ExistingFileHelper;
 import net.minecraftforge.data.event.GatherDataEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import net.mofusya.examplemod.C;
+import net.mofusya.mek_whatever_generator.C;
 
 import java.util.concurrent.CompletableFuture;
 
