@@ -2,8 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "net.mofusya.mek_everything_generator.mixin",
-  "compatibilityLevel": "JAVA_17",
-  "refmap": "mek_everything_generator.refmap.json",
+  "compatibilityLevel": "JAVA_21",
   "mixins": [
   ],
   "client": [

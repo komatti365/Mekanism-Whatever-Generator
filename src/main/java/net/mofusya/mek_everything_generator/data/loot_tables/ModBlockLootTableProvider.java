@@ -1,33 +1,34 @@
 package net.mofusya.mek_everything_generator.data.loot_tables;
 
+import net.minecraft.core.HolderLookup;
 import net.minecraft.data.loot.BlockLootSubProvider;
 import net.minecraft.world.flag.FeatureFlags;
 import net.minecraft.world.level.block.Block;
-import net.minecraftforge.registries.RegistryObject;
+import net.neoforged.neoforge.registries.DeferredHolder;
 
 import java.util.ArrayList;
 import java.util.Set;
 
 public class ModBlockLootTableProvider extends BlockLootSubProvider {
-    public ModBlockLootTableProvider() {
-        super(Set.of(), FeatureFlags.REGISTRY.allFlags());
+    public ModBlockLootTableProvider(HolderLookup.Provider registries) {
+        super(Set.of(), FeatureFlags.REGISTRY.allFlags(), registries);
     }
 
     @Override
     protected void generate() {
-        ArrayList<RegistryObject<Block>> registries = new ArrayList<>();
+        ArrayList<DeferredHolder<Block, ? extends Block>> registries = new ArrayList<>();
 
 
-        for (RegistryObject<Block> block : registries) {
+        for (DeferredHolder<Block, ? extends Block> block : registries) {
             this.dropSelf(block.get());
         }
     }
 
     @Override
     protected Iterable<Block> getKnownBlocks() {
-        ArrayList<RegistryObject<Block>> blocks = new ArrayList<>();
+        ArrayList<DeferredHolder<Block, ? extends Block>> blocks = new ArrayList<>();
 
 
-        return blocks.stream().map(RegistryObject::get).toList();
+        return blocks.stream().<Block>map(DeferredHolder::get).toList();
     }
 }

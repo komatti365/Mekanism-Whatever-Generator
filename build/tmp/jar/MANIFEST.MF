@@ -1,0 +1,9 @@
+Manifest-Version: 1.0
+Specification-Title: mek_everything_generator
+Specification-Vendor: Omotinomoti
+Specification-Version: 1
+Implementation-Title: Mekanism-Whatever-Generator
+Implementation-Version: 1.21.1-alpha0.1a-neoforge
+Implementation-Vendor: Omotinomoti
+Implementation-Timestamp: 2026-11-17T10:32:10+0900
+

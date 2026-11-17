@@ -4,9 +4,9 @@ import net.minecraft.core.HolderLookup;
 import net.minecraft.data.PackOutput;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.Block;
-import net.minecraftforge.common.data.BlockTagsProvider;
-import net.minecraftforge.common.data.ExistingFileHelper;
-import net.minecraftforge.registries.RegistryObject;
+import net.neoforged.neoforge.common.data.BlockTagsProvider;
+import net.neoforged.neoforge.common.data.ExistingFileHelper;
+import net.neoforged.neoforge.registries.DeferredHolder;
 import net.mofusya.mek_everything_generator.C;
 import org.jetbrains.annotations.Nullable;
 
@@ -21,21 +21,21 @@ public class ModBlockTagProvider extends BlockTagsProvider {
     @Override
     protected void addTags(HolderLookup.Provider provider) {
         {
-            ArrayList<RegistryObject<Block>> registries = new ArrayList<>();
+            ArrayList<DeferredHolder<Block, ? extends Block>> registries = new ArrayList<>();
 
 
             var tags = this.tag(BlockTags.MINEABLE_WITH_PICKAXE);
-            for (RegistryObject<Block> block : registries) {
+            for (DeferredHolder<Block, ? extends Block> block : registries) {
                 tags.add(block.get());
             }
         }
 
         {
-            ArrayList<RegistryObject<Block>> registries = new ArrayList<>();
+            ArrayList<DeferredHolder<Block, ? extends Block>> registries = new ArrayList<>();
 
 
             var tags = this.tag(BlockTags.NEEDS_IRON_TOOL);
-            for (RegistryObject<Block> block : registries) {
+            for (DeferredHolder<Block, ? extends Block> block : registries) {
                 tags.add(block.get());
             }
         }

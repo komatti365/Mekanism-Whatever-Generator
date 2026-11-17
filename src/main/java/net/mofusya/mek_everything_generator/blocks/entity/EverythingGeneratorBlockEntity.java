@@ -2,33 +2,31 @@ package net.mofusya.mek_everything_generator.blocks.entity;
 
 import com.google.gson.JsonObject;
 import mekanism.api.Action;
-import mekanism.api.chemical.Chemical;
+import mekanism.api.MekanismAPI;
 import mekanism.api.chemical.ChemicalStack;
 import mekanism.api.chemical.IChemicalHandler;
-import mekanism.api.chemical.gas.Gas;
-import mekanism.api.chemical.gas.GasStack;
-import mekanism.api.chemical.gas.IGasHandler;
-import mekanism.common.capabilities.Capabilities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.Tag;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientGamePacketListener;
 import net.minecraft.network.protocol.game.ClientboundBlockEntityDataPacket;
 import net.minecraft.util.GsonHelper;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraftforge.common.capabilities.Capability;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.common.util.INBTSerializable;
-import net.minecraftforge.common.util.LazyOptional;
-import net.minecraftforge.energy.IEnergyStorage;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fluids.capability.IFluidHandler;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.registries.ForgeRegistries;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.common.util.INBTSerializable;
+import net.neoforged.neoforge.energy.IEnergyStorage;
+import net.neoforged.neoforge.fluids.FluidStack;
+import net.neoforged.neoforge.fluids.capability.IFluidHandler;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.registries.NeoForgeRegistries;
 import net.mofusya.mek_everything_generator.C;
 import net.mofusya.mek_everything_generator.blocks.EgBlockEntityTypes;
 import net.mofusya.mek_everything_generator.config.EgJsonConfigs;
@@ -48,26 +46,20 @@ public class EverythingGeneratorBlockEntity extends BlockEntity {
     private final ScrapFluidHandler fluidHandler;
     private final ScrapGasHandler gasHandler;
     private final ScrapEnergyHandler subEnergyHandler;
-    private LazyOptional<IEnergyStorage> lazyMainEnergyHandler;
-    private LazyOptional<IItemHandler> lazyItemHandler;
-    private LazyOptional<IFluidHandler> lazyFluidHandler;
-    private LazyOptional<IGasHandler> lazyGasHandler;
-    private LazyOptional<IEnergyStorage> lazySubEnergyHandler;
 
     public EverythingGeneratorBlockEntity(BlockPos pos, BlockState state) {
         //Initialize super.
         super(EgBlockEntityTypes.EVERYTHING_GENERATOR.get(), pos, state);
 
-        //Initialize lazy/normal main energyHandler.
+        //Initialize main energyHandler.
         this.mainEnergyHandler = new ForgeEnergyHandler(Integer.MAX_VALUE, 0, Integer.MAX_VALUE) {
             @Override
             public void onChanged() {
                 EverythingGeneratorBlockEntity.this.setChange();
             }
         };
-        this.lazyMainEnergyHandler = LazyOptional.empty();
 
-        //Initialize lazy/normal itemHandler.
+        //Initialize itemHandler.
         this.itemHandler = new ScrapItemHandler() {
             @Override
             public Level getLevel() {
@@ -79,9 +71,8 @@ public class EverythingGeneratorBlockEntity extends BlockEntity {
                 EverythingGeneratorBlockEntity.this.setChange();
             }
         };
-        this.lazyItemHandler = LazyOptional.empty();
 
-        //Initialize lazy/normal fluidHandler.
+        //Initialize fluidHandler.
         this.fluidHandler = new ScrapFluidHandler() {
             @Override
             public Level getLevel() {
@@ -93,9 +84,8 @@ public class EverythingGeneratorBlockEntity extends BlockEntity {
                 EverythingGeneratorBlockEntity.this.setChange();
             }
         };
-        this.lazyFluidHandler = LazyOptional.empty();
 
-        //Initialize lazy/normal gasHandler.
+        //Initialize chemical (gas) handler.
         this.gasHandler = new ScrapGasHandler() {
             @Override
             public Level getLevel() {
@@ -107,9 +97,8 @@ public class EverythingGeneratorBlockEntity extends BlockEntity {
                 EverythingGeneratorBlockEntity.this.setChange();
             }
         };
-        this.lazyGasHandler = LazyOptional.empty();
 
-        //Initialize lazy/normal sub energyHandler.
+        //Initialize sub energyHandler.
         this.subEnergyHandler = new ScrapEnergyHandler() {
             @Override
             public Level getLevel() {
@@ -121,7 +110,29 @@ public class EverythingGeneratorBlockEntity extends BlockEntity {
                 EverythingGeneratorBlockEntity.this.setChange();
             }
         };
-        this.lazySubEnergyHandler = LazyOptional.empty();
+    }
+
+    public static void registerCapabilities(RegisterCapabilitiesEvent event) {
+        event.registerBlockEntity(
+                Capabilities.EnergyStorage.BLOCK,
+                EgBlockEntityTypes.EVERYTHING_GENERATOR.get(),
+                (be, side) -> (side == null || side == Direction.DOWN) ? be.getMainEnergyHandler() : be.getSubEnergyHandler()
+        );
+        event.registerBlockEntity(
+                Capabilities.ItemHandler.BLOCK,
+                EgBlockEntityTypes.EVERYTHING_GENERATOR.get(),
+                (be, side) -> (side != null && side != Direction.DOWN) ? be.getItemHandler() : null
+        );
+        event.registerBlockEntity(
+                Capabilities.FluidHandler.BLOCK,
+                EgBlockEntityTypes.EVERYTHING_GENERATOR.get(),
+                (be, side) -> (side == null || side != Direction.DOWN) ? be.getFluidHandler() : null
+        );
+        event.registerBlockEntity(
+                mekanism.common.capabilities.Capabilities.CHEMICAL.block(),
+                EgBlockEntityTypes.EVERYTHING_GENERATOR.get(),
+                (be, side) -> (side == null || side != Direction.DOWN) ? be.getGasHandler() : null
+        );
     }
 
     public void tick(Level level, BlockPos pos, BlockState state) {
@@ -135,98 +146,37 @@ public class EverythingGeneratorBlockEntity extends BlockEntity {
     }
 
     @Override
-    public @NotNull <T> LazyOptional<T> getCapability(@NotNull Capability<T> cap, @org.jetbrains.annotations.Nullable Direction side) {
-        //If the level is null, return super.
-        if (this.getLevel() == null) return super.getCapability(cap, side);
-
-        //If side is null,
-        if (side == null) {
-            //Check if cap is energy cap. If so, return the main lazy energyHandler.
-            if (cap == ForgeCapabilities.ENERGY) {
-                return this.lazyMainEnergyHandler.cast();
-            }
-            //Check if cap is gas cap. If so, Return the lazy gasHandler.
-            if (cap == Capabilities.GAS_HANDLER) {
-                return this.lazyGasHandler.cast();
-            }
-            //Check if cap is fluid cap. If so, Return the lazy fluidHandler.
-            if (cap == ForgeCapabilities.FLUID_HANDLER) {
-                return this.lazyFluidHandler.cast();
-            }
-        } else {
-            //Check if cap is energy cao. If so return the main/sub lazy energyHandler.
-            if (cap == ForgeCapabilities.ENERGY) {
-                //If side is down, return the main lazy energyHandler. If not, return the sub lazy energyHandler.
-                if (side == Direction.DOWN) {
-                    return this.lazyMainEnergyHandler.cast();
-                } else {
-                    return this.lazySubEnergyHandler.cast();
-                }
-            }
-            //Check if cap is energy cap and side is not down. If so, return the itemHandler.
-            if (cap == ForgeCapabilities.ITEM_HANDLER && side != Direction.DOWN) {
-                return this.lazyItemHandler.cast();
-            }
-            //Check if cap is gas cap and side is not down. If so, return the gasHandler.
-            if (cap == Capabilities.GAS_HANDLER && side != Direction.DOWN) {
-                return this.lazyGasHandler.cast();
-            }
-            //Check if cap is fluid cap and side is not down. If so, return the fluidHandler.
-            if (cap == ForgeCapabilities.FLUID_HANDLER && side != Direction.DOWN) {
-                return this.lazyFluidHandler.cast();
-            }
-        }
-
-        //Return super.
-        return super.getCapability(cap, side);
-    }
-
-    @Override
-    public void onLoad() {
+    protected void saveAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         //Fire super.
-        super.onLoad();
-        //Initialize all lazy main handler.
-        this.lazyMainEnergyHandler = LazyOptional.of(() -> this.mainEnergyHandler);
-        this.lazyItemHandler = LazyOptional.of(() -> this.itemHandler);
-        this.lazyFluidHandler = LazyOptional.of(() -> this.fluidHandler);
-        this.lazyGasHandler = LazyOptional.of(() -> this.gasHandler);
-        this.lazySubEnergyHandler = LazyOptional.of(() -> this.subEnergyHandler);
-    }
-
-    @Override
-    public void invalidateCaps() {
-        //Fire super.
-        super.invalidateCaps();
-        //Invalidate all lazy handlers.
-        this.lazyMainEnergyHandler.invalidate();
-        this.lazyItemHandler.invalidate();
-        this.lazyFluidHandler.invalidate();
-        this.lazyGasHandler.invalidate();
-        this.lazySubEnergyHandler.invalidate();
-    }
-
-    @Override
-    protected void saveAdditional(CompoundTag tag) {
-        //Fire super.
-        super.saveAdditional(tag);
+        super.saveAdditional(tag, registries);
         //Serialize main energyHandler, itemHandler, sub energyHandler.
-        tag.put(C.ENERGY_HANDLER, this.getMainEnergyHandler().serializeNBT());
-        tag.put(C.SCRAP_ITEM_HANDLER, this.getItemHandler().serializeNBT());
-        tag.put(C.SCRAP_FLUID_HANDLER, this.getFluidHandler().serializeNBT());
-        tag.put(C.SCRAP_GAS_HANDLER, this.getGasHandler().serializeNBT());
-        tag.put(C.SCRAP_ENERGY_HANDLER, this.getSubEnergyHandler().serializeNBT());
+        tag.put(C.ENERGY_HANDLER, this.getMainEnergyHandler().serializeNBT(registries));
+        tag.put(C.SCRAP_ITEM_HANDLER, this.getItemHandler().serializeNBT(registries));
+        tag.put(C.SCRAP_FLUID_HANDLER, this.getFluidHandler().serializeNBT(registries));
+        tag.put(C.SCRAP_GAS_HANDLER, this.getGasHandler().serializeNBT(registries));
+        tag.put(C.SCRAP_ENERGY_HANDLER, this.getSubEnergyHandler().serializeNBT(registries));
     }
 
     @Override
-    public void load(CompoundTag tag) {
+    protected void loadAdditional(CompoundTag tag, HolderLookup.Provider registries) {
         //Fire super.
-        super.load(tag);
+        super.loadAdditional(tag, registries);
         //Deserialize main energyHandler, itemHandler, sub energyHandler.
-        this.getMainEnergyHandler().deserializeNBT(tag.get(C.ENERGY_HANDLER));
-        this.getItemHandler().deserializeNBT((CompoundTag) tag.get(C.SCRAP_ITEM_HANDLER));
-        this.getFluidHandler().deserializeNBT((CompoundTag) tag.get(C.SCRAP_FLUID_HANDLER));
-        this.getGasHandler().deserializeNBT((CompoundTag) tag.get(C.SCRAP_GAS_HANDLER));
-        this.getSubEnergyHandler().deserializeNBT((CompoundTag) tag.get(C.SCRAP_ENERGY_HANDLER));
+        if (tag.contains(C.ENERGY_HANDLER)) {
+            this.getMainEnergyHandler().deserializeNBT(registries, tag.get(C.ENERGY_HANDLER));
+        }
+        if (tag.contains(C.SCRAP_ITEM_HANDLER, Tag.TAG_COMPOUND)) {
+            this.getItemHandler().deserializeNBT(registries, tag.getCompound(C.SCRAP_ITEM_HANDLER));
+        }
+        if (tag.contains(C.SCRAP_FLUID_HANDLER, Tag.TAG_COMPOUND)) {
+            this.getFluidHandler().deserializeNBT(registries, tag.getCompound(C.SCRAP_FLUID_HANDLER));
+        }
+        if (tag.contains(C.SCRAP_GAS_HANDLER, Tag.TAG_COMPOUND)) {
+            this.getGasHandler().deserializeNBT(registries, tag.getCompound(C.SCRAP_GAS_HANDLER));
+        }
+        if (tag.contains(C.SCRAP_ENERGY_HANDLER, Tag.TAG_COMPOUND)) {
+            this.getSubEnergyHandler().deserializeNBT(registries, tag.getCompound(C.SCRAP_ENERGY_HANDLER));
+        }
     }
 
     public ForgeEnergyHandler getMainEnergyHandler() {
@@ -256,8 +206,8 @@ public class EverythingGeneratorBlockEntity extends BlockEntity {
     }
 
     @Override
-    public CompoundTag getUpdateTag() {
-        return this.saveWithFullMetadata();
+    public CompoundTag getUpdateTag(HolderLookup.Provider registries) {
+        return this.saveWithFullMetadata(registries);
     }
 
     public void setChange() {
@@ -282,14 +232,14 @@ public class EverythingGeneratorBlockEntity extends BlockEntity {
         Level getLevel();
 
         @Override
-        default CompoundTag serializeNBT() {
+        default CompoundTag serializeNBT(HolderLookup.Provider registries) {
             CompoundTag tag = new CompoundTag();
             tag.putLong(C.SCRAP, this.getScrap());
             return tag;
         }
 
         @Override
-        default void deserializeNBT(CompoundTag nbt) {
+        default void deserializeNBT(HolderLookup.Provider registries, CompoundTag nbt) {
             this.setScrap(nbt.getLong(C.SCRAP));
         }
 
@@ -317,11 +267,11 @@ public class EverythingGeneratorBlockEntity extends BlockEntity {
 
         @Override
         public @NotNull ItemStack insertItem(int slot, @NotNull ItemStack stack, boolean simulate) {
-            if (!simulate) {
+            if (!simulate && !stack.isEmpty()) {
                 SimpleItemGasFluidRLContainer container = new SimpleItemGasFluidRLContainer(stack, null, null);
-                Optional<EverythingGeneratingRecipe> recipe = this.getLevel().getRecipeManager().getRecipeFor(EverythingGeneratingRecipe.Type.INSTANCE, container, this.getLevel());
+                Optional<RecipeHolder<EverythingGeneratingRecipe>> recipe = this.getLevel().getRecipeManager().getRecipeFor(EverythingGeneratingRecipe.Type.INSTANCE, container, this.getLevel());
 
-                int itemBonus = recipe.map(EverythingGeneratingRecipe::getScrapResult).orElse(1);
+                int itemBonus = recipe.map(holder -> holder.value().getScrapResult()).orElse(1);
 
                 this.setScrap(scrap -> scrap + (long) stack.getCount() * itemBonus);
             }
@@ -382,11 +332,12 @@ public class EverythingGeneratorBlockEntity extends BlockEntity {
 
         @Override
         public int fill(FluidStack resource, FluidAction action) {
+            if (resource.isEmpty()) return 0;
             if (action.execute()) {
-                SimpleItemGasFluidRLContainer container = new SimpleItemGasFluidRLContainer(null, ForgeRegistries.FLUID_TYPES.get().getKey(resource.getFluid().getFluidType()), null);
-                Optional<EverythingGeneratingRecipe> recipe = this.getLevel().getRecipeManager().getRecipeFor(EverythingGeneratingRecipe.Type.INSTANCE, container, this.getLevel());
+                SimpleItemGasFluidRLContainer container = new SimpleItemGasFluidRLContainer(null, NeoForgeRegistries.FLUID_TYPES.getKey(resource.getFluid().getFluidType()), null);
+                Optional<RecipeHolder<EverythingGeneratingRecipe>> recipe = this.getLevel().getRecipeManager().getRecipeFor(EverythingGeneratingRecipe.Type.INSTANCE, container, this.getLevel());
 
-                int itemBonus = recipe.map(EverythingGeneratingRecipe::getScrapResult).orElse(1);
+                int itemBonus = recipe.map(holder -> holder.value().getScrapResult()).orElse(1);
 
                 this.setScrap(scrap -> scrap + (long) resource.getAmount() * itemBonus);
                 this.onChanged();
@@ -417,70 +368,66 @@ public class EverythingGeneratorBlockEntity extends BlockEntity {
         abstract void onChanged();
     }
 
-    public static abstract class ScrapGasHandler extends ScrapChemicalHandler<Gas, GasStack> implements IGasHandler {
-        @Override
-        @NotNull
-        public GasStack getEmptyStack() {
-            return GasStack.EMPTY;
-        }
-
-        @Override
-        public GasStack newStack(GasStack stack, long amount) {
-            return new GasStack(stack, amount);
-        }
+    public static abstract class ScrapGasHandler extends ScrapChemicalHandler {
     }
 
-    public static abstract class ScrapChemicalHandler<CHEMICAL extends Chemical<CHEMICAL>, STACK extends ChemicalStack<CHEMICAL>> implements ScrapHandlerSerializable, IChemicalHandler<CHEMICAL, STACK> {
+    public static abstract class ScrapChemicalHandler implements ScrapHandlerSerializable, IChemicalHandler {
         private long scrap = 0;
 
         @Override
-        public int getTanks() {
+        public int getChemicalTanks() {
             return 1;
         }
 
         @Override
-        public long getTankCapacity(int i) {
+        public long getChemicalTankCapacity(int tank) {
             return Integer.MAX_VALUE;
         }
 
         @Override
-        public boolean isValid(int i, STACK stack) {
+        public boolean isValid(int tank, ChemicalStack stack) {
             return true;
         }
 
         @Override
         @NotNull
-        public STACK getChemicalInTank(int i) {
-            return this.getEmptyStack();
+        public ChemicalStack getChemicalInTank(int tank) {
+            return ChemicalStack.EMPTY;
         }
 
         @Override
         @NotNull
-        public STACK extractChemical(int i, long l, Action action) {
-            return this.getEmptyStack();
+        public ChemicalStack extractChemical(int tank, long amount, Action action) {
+            return ChemicalStack.EMPTY;
         }
 
         @Override
-        public void setChemicalInTank(int i, STACK stack) {
-            this.setScrap(scrap -> scrap + stack.getAmount());
+        public void setChemicalInTank(int tank, ChemicalStack stack) {
+            if (!stack.isEmpty()) {
+                this.setScrap(scrap -> scrap + stack.getAmount());
+            }
         }
 
         @Override
         @NotNull
-        public STACK insertChemical(int i, STACK stack, Action action) {
-            long insertAmount = Math.min(stack.getAmount(), this.getTankCapacity(0));
+        public ChemicalStack insertChemical(int tank, ChemicalStack stack, Action action) {
+            if (stack.isEmpty()) return ChemicalStack.EMPTY;
 
-            //If action is simulate, return stack
-            if (action.simulate()) return this.newStack(stack, stack.getAmount() - insertAmount);
+            long insertAmount = Math.min(stack.getAmount(), this.getChemicalTankCapacity(0));
+            long remaining = stack.getAmount() - insertAmount;
+            ChemicalStack remainder = remaining <= 0 ? ChemicalStack.EMPTY : stack.copyWithAmount(remaining);
 
-            SimpleItemGasFluidRLContainer container = new SimpleItemGasFluidRLContainer(null, null, stack.getTypeRegistryName());
-            Optional<EverythingGeneratingRecipe> recipe = this.getLevel().getRecipeManager().getRecipeFor(EverythingGeneratingRecipe.Type.INSTANCE, container, this.getLevel());
+            //If action is simulate, return remainder
+            if (action.simulate()) return remainder;
+
+            SimpleItemGasFluidRLContainer container = new SimpleItemGasFluidRLContainer(null, null, MekanismAPI.CHEMICAL_REGISTRY.getKey(stack.getChemical()));
+            Optional<RecipeHolder<EverythingGeneratingRecipe>> recipe = this.getLevel().getRecipeManager().getRecipeFor(EverythingGeneratingRecipe.Type.INSTANCE, container, this.getLevel());
 
             //get gasBonus.
-            int gasBonus = recipe.map(EverythingGeneratingRecipe::getScrapResult).orElse(1);
+            int gasBonus = recipe.map(holder -> holder.value().getScrapResult()).orElse(1);
             //Add to scrap.
             this.setScrap(scrap -> scrap + insertAmount * gasBonus);
-            return this.newStack(stack, stack.getAmount() - insertAmount);
+            return remainder;
         }
 
         @Override
@@ -493,8 +440,6 @@ public class EverythingGeneratorBlockEntity extends BlockEntity {
             this.scrap = scrap;
             this.onChanged();
         }
-
-        abstract STACK newStack(STACK stack, long amount);
 
         abstract void onChanged();
     }

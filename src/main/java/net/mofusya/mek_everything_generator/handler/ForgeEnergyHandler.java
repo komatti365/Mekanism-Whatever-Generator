@@ -1,6 +1,6 @@
 package net.mofusya.mek_everything_generator.handler;
 
-import net.minecraftforge.energy.EnergyStorage;
+import net.neoforged.neoforge.energy.EnergyStorage;
 
 public abstract class ForgeEnergyHandler extends EnergyStorage {
     public ForgeEnergyHandler(int capacity) {

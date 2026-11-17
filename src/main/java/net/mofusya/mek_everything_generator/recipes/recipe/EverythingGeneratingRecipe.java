@@ -1,11 +1,14 @@
 package net.mofusya.mek_everything_generator.recipes.recipe;
 
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.network.FriendlyByteBuf;
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.DataResult;
+import com.mojang.serialization.MapCodec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.GsonHelper;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.Recipe;
@@ -16,10 +19,10 @@ import net.mofusya.mek_everything_generator.C;
 import net.mofusya.mek_everything_generator.recipes.SimpleItemGasFluidRLContainer;
 
 import javax.annotation.Nullable;
+import java.util.Optional;
 
 public class EverythingGeneratingRecipe implements Recipe<SimpleItemGasFluidRLContainer> {
 
-    private final ResourceLocation id;
     @Nullable
     private final Ingredient ingredient;
     @Nullable
@@ -28,8 +31,7 @@ public class EverythingGeneratingRecipe implements Recipe<SimpleItemGasFluidRLCo
     private final ResourceLocation gasIngredient;
     private final int scrapResult;
 
-    public EverythingGeneratingRecipe(ResourceLocation id, @Nullable Ingredient ingredient, @Nullable ResourceLocation fluidIngredient, @Nullable ResourceLocation gasIngredient, int scrapResult) {
-        this.id = id;
+    public EverythingGeneratingRecipe(@Nullable Ingredient ingredient, @Nullable ResourceLocation fluidIngredient, @Nullable ResourceLocation gasIngredient, int scrapResult) {
         this.ingredient = ingredient;
         this.fluidIngredient = fluidIngredient;
         this.gasIngredient = gasIngredient;
@@ -38,30 +40,24 @@ public class EverythingGeneratingRecipe implements Recipe<SimpleItemGasFluidRLCo
 
     @Override
     public boolean matches(SimpleItemGasFluidRLContainer container, Level level) {
-        return (this.getIngredient() != null && this.getIngredient().test(container.getItem(0)) ||
+        return (this.getIngredient() != null && this.getIngredient().test(container.getItem(0))) ||
                 (this.getFluidIngredient() != null && container.getFluidId() != null && this.getFluidIngredient().equals(container.getFluidId())) ||
-                (this.getGasIngredient() != null && container.getGasId() != null && this.getGasIngredient().equals(container.getGasId()))
-        );
+                (this.getGasIngredient() != null && container.getGasId() != null && this.getGasIngredient().equals(container.getGasId()));
     }
 
     @Override
-    public ItemStack assemble(SimpleItemGasFluidRLContainer p_44001_, RegistryAccess p_267165_) {
-        return null;
+    public ItemStack assemble(SimpleItemGasFluidRLContainer container, HolderLookup.Provider registries) {
+        return ItemStack.EMPTY;
     }
 
     @Override
-    public boolean canCraftInDimensions(int p_43999_, int p_44000_) {
+    public boolean canCraftInDimensions(int width, int height) {
         return true;
     }
 
     @Override
-    public ItemStack getResultItem(RegistryAccess p_267052_) {
-        return null;
-    }
-
-    @Override
-    public ResourceLocation getId() {
-        return this.id;
+    public ItemStack getResultItem(HolderLookup.Provider registries) {
+        return ItemStack.EMPTY;
     }
 
     @Nullable
@@ -95,84 +91,57 @@ public class EverythingGeneratingRecipe implements Recipe<SimpleItemGasFluidRLCo
 
     public enum Type implements RecipeType<EverythingGeneratingRecipe> {
         INSTANCE;
+
+        @Override
+        public String toString() {
+            return C.MOD_ID + ":everything_generating";
+        }
     }
 
     public enum Serializer implements RecipeSerializer<EverythingGeneratingRecipe> {
         INSTANCE;
 
-        private static boolean isNullLike(ResourceLocation resourceLocation) {
-            return resourceLocation.getNamespace().equals(C.MOD_ID) && resourceLocation.getPath().equals(C.NULL);
-        }
-
-        private static ResourceLocation getNullLike() {
-            return new ResourceLocation(C.MOD_ID, C.NULL);
-        }
-
-        private static void checkOnlyOneNotNull(String errMessage, Object... objects) {
-            int nullCount = 0;
-            for (Object object : objects) {
-                if (object != null) nullCount++;
+        public static final MapCodec<EverythingGeneratingRecipe> CODEC = RecordCodecBuilder.<EverythingGeneratingRecipe>mapCodec(instance -> instance.group(
+                Ingredient.CODEC_NONEMPTY.optionalFieldOf(C.ITEM_INGREDIENT).forGetter(recipe -> Optional.ofNullable(recipe.getIngredient())),
+                ResourceLocation.CODEC.optionalFieldOf(C.FLUID_INGREDIENT).forGetter(recipe -> Optional.ofNullable(recipe.getFluidIngredient())),
+                ResourceLocation.CODEC.optionalFieldOf(C.GAS_INGREDIENT).forGetter(recipe -> Optional.ofNullable(recipe.getGasIngredient())),
+                Codec.INT.fieldOf(C.SCRAP_RESULT).forGetter(EverythingGeneratingRecipe::getScrapResult)
+        ).apply(instance, (item, fluid, gas, scrap) -> new EverythingGeneratingRecipe(
+                item.orElse(null),
+                fluid.orElse(null),
+                gas.orElse(null),
+                scrap
+        ))).validate(recipe -> {
+            int count = (recipe.getIngredient() != null ? 1 : 0)
+                    + (recipe.getFluidIngredient() != null ? 1 : 0)
+                    + (recipe.getGasIngredient() != null ? 1 : 0);
+            if (count != 1) {
+                return DataResult.error(() -> "Recipe \"" + C.MOD_ID + ":everything_generating\" has multiple, or too few ingredients and is illegal.");
             }
+            return DataResult.success(recipe);
+        });
 
-            if (nullCount != 1) {
-                throw new IllegalStateException(errMessage);
-            }
+        public static final StreamCodec<RegistryFriendlyByteBuf, EverythingGeneratingRecipe> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.optional(Ingredient.CONTENTS_STREAM_CODEC), recipe -> Optional.ofNullable(recipe.getIngredient()),
+                ByteBufCodecs.optional(ResourceLocation.STREAM_CODEC), recipe -> Optional.ofNullable(recipe.getFluidIngredient()),
+                ByteBufCodecs.optional(ResourceLocation.STREAM_CODEC), recipe -> Optional.ofNullable(recipe.getGasIngredient()),
+                ByteBufCodecs.VAR_INT, EverythingGeneratingRecipe::getScrapResult,
+                (item, fluid, gas, scrap) -> new EverythingGeneratingRecipe(
+                        item.orElse(null),
+                        fluid.orElse(null),
+                        gas.orElse(null),
+                        scrap
+                )
+        );
+
+        @Override
+        public MapCodec<EverythingGeneratingRecipe> codec() {
+            return CODEC;
         }
 
         @Override
-        public EverythingGeneratingRecipe fromJson(ResourceLocation id, JsonObject json) {
-            @Nullable
-            JsonObject itemIngredientObject = json.getAsJsonObject(C.ITEM_INGREDIENT);
-            @Nullable
-            JsonPrimitive fluidIngredientObject = json.getAsJsonPrimitive(C.FLUID_INGREDIENT);
-            @Nullable
-            JsonPrimitive gasIngredientObject = json.getAsJsonPrimitive(C.GAS_INGREDIENT);
-            int scrapResult = GsonHelper.getAsInt(json, C.SCRAP_RESULT);
-
-            checkOnlyOneNotNull("Recipe \"mek_whatever_generator:whatever_generating\"'s file \"" + id + "\" has multiple, or too less ingredients and is illegal. Thank you. :)", itemIngredientObject, fluidIngredientObject, gasIngredientObject);
-
-            return new EverythingGeneratingRecipe(id,
-                    itemIngredientObject == null ? null : Ingredient.fromJson(itemIngredientObject),
-                    fluidIngredientObject == null ? null : new ResourceLocation(fluidIngredientObject.getAsString()),
-                    gasIngredientObject == null ? null : new ResourceLocation(gasIngredientObject.getAsString()),
-                    scrapResult
-            );
-        }
-
-        @Override
-        public EverythingGeneratingRecipe fromNetwork(ResourceLocation id, FriendlyByteBuf buf) {
-            Ingredient itemIngredient = Ingredient.fromNetwork(buf);
-            if (itemIngredient.isEmpty()) itemIngredient = null;
-            ResourceLocation fluidIngredient = buf.readResourceLocation();
-            if (isNullLike(fluidIngredient)) fluidIngredient = null;
-            ResourceLocation gasIngredient = buf.readResourceLocation();
-            if (isNullLike(gasIngredient)) gasIngredient = null;
-            int scrapResult = buf.readInt();
-
-            return new EverythingGeneratingRecipe(id, itemIngredient, fluidIngredient, gasIngredient, scrapResult);
-        }
-
-        @Override
-        public void toNetwork(FriendlyByteBuf buf, EverythingGeneratingRecipe recipe) {
-            if (recipe.getIngredient() == null) {
-                Ingredient.EMPTY.toNetwork(buf);
-            } else {
-                recipe.getIngredient().toNetwork(buf);
-            }
-
-            if (recipe.getFluidIngredient() == null) {
-                buf.writeResourceLocation(getNullLike());
-            } else {
-                buf.writeResourceLocation(recipe.getFluidIngredient());
-            }
-
-            if (recipe.getGasIngredient() == null) {
-                buf.writeResourceLocation(getNullLike());
-            } else {
-                buf.writeResourceLocation(recipe.getGasIngredient());
-            }
-
-            buf.writeInt(recipe.getScrapResult());
+        public StreamCodec<RegistryFriendlyByteBuf, EverythingGeneratingRecipe> streamCodec() {
+            return STREAM_CODEC;
         }
     }
 }

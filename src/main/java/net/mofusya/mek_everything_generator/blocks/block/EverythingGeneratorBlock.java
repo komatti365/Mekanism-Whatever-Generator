@@ -1,5 +1,6 @@
 package net.mofusya.mek_everything_generator.blocks.block;
 
+import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
@@ -13,8 +14,15 @@ import net.mofusya.mek_everything_generator.blocks.entity.EverythingGeneratorBlo
 import org.jetbrains.annotations.Nullable;
 
 public class EverythingGeneratorBlock extends BaseEntityBlock {
+    public static final MapCodec<EverythingGeneratorBlock> CODEC = simpleCodec(EverythingGeneratorBlock::new);
+
     public EverythingGeneratorBlock(Properties build) {
         super(build);
+    }
+
+    @Override
+    protected MapCodec<? extends BaseEntityBlock> codec() {
+        return CODEC;
     }
 
     @Override

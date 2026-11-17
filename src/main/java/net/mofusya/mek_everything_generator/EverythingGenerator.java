@@ -2,13 +2,13 @@ package net.mofusya.mek_everything_generator;
 
 import com.mojang.logging.LogUtils;
 import mekanism.common.registries.MekanismCreativeTabs;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.mofusya.mek_everything_generator.blocks.EgBlockEntityTypes;
 import net.mofusya.mek_everything_generator.blocks.EgBlocks;
+import net.mofusya.mek_everything_generator.blocks.entity.EverythingGeneratorBlockEntity;
 import net.mofusya.mek_everything_generator.config.EgJsonConfigs;
 import net.mofusya.mek_everything_generator.items.EgCreativeTabs;
 import net.mofusya.mek_everything_generator.recipes.EgRecipeSerializers;
@@ -20,24 +20,22 @@ public class EverythingGenerator
     public static final String MOD_ID = "mek_everything_generator";
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    public EverythingGenerator()
+    public EverythingGenerator(IEventBus modEventBus, ModContainer modContainer)
     {
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
-
-        EgBlocks.BLOCKS.register(modEventBus);
+        EgBlocks.register(modEventBus);
         EgBlockEntityTypes.BLOCK_ENTITY_TYPES.register(modEventBus);
         EgJsonConfigs.MAIN_CONFIG.load();
-        EgRecipeSerializers.RECIPE_SERIALIZERS.register(modEventBus);
+        EgRecipeSerializers.register(modEventBus);
         EgCreativeTabs.CREATIVE_TABS.register(modEventBus);
 
-        MinecraftForge.EVENT_BUS.register(this);
         modEventBus.addListener(this::addCreative);
+        modEventBus.addListener(EverythingGeneratorBlockEntity::registerCapabilities);
     }
 
     private void addCreative(BuildCreativeModeTabContentsEvent event)
     {
-        if (event.getTabKey() == MekanismCreativeTabs.MEKANISM.key()){
-            EgBlocks.BLOCKS.getItems().forEach(event::accept);
+        if (event.getTabKey() == MekanismCreativeTabs.MEKANISM.getKey()){
+            EgBlocks.getItems().forEach(item -> event.accept(item.get()));
         }
     }
 }
